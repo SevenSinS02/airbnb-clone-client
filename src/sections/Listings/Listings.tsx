@@ -1,29 +1,37 @@
-import React, { FunctionComponent } from 'react';
-import { useQuery,useMutation } from '../../lib/api'
-import { Listing, ListingsData, DeleteListingData, DeleteListingVariable } from './types'
+import React, { FunctionComponent } from 'react'
+import { gql } from 'apollo-boost'
+import { useQuery, useMutation } from 'react-apollo'
+import { Alert, Avatar, Button, List, Spin } from 'antd'
+import { ListingsSkeleton } from './components'
+import { Listings as ListingsData } from './__generated__/Listings'
+import {
+  DeleteListing as DeleteListingData,
+  DeleteListingVariables,
+} from './__generated__/DeleteListing'
+import './styles/Listings.css'
 
-const LISTINGS = `
-query Listings{
-  listings{
-    id
-    title
-    image
-    address
-    price
-    numOfGuests
-    numOfBeds
-    numOfBaths
-    rating
+const LISTINGS = gql`
+  query Listings {
+    listings {
+      id
+      title
+      image
+      address
+      price
+      numOfGuests
+      numOfBeds
+      numOfBaths
+      rating
+    }
   }
-}
 `
 
-const DELETE_LISTING = `
-mutation DeleteListing($id: ID!){
-deleteListing(id:$id){
-  id
-}
-}
+const DELETE_LISTING = gql`
+  mutation DeleteListing($id: ID!) {
+    deleteListing(id: $id) {
+      id
+    }
+  }
 `
 
 interface Props {
@@ -31,52 +39,72 @@ interface Props {
 }
 
 export const Listings: FunctionComponent<Props> = ({ title }) => {
-  const { data,loading,error,refetch } = useQuery<ListingsData>(LISTINGS)
+  const { data, loading, error, refetch } = useQuery<ListingsData>(LISTINGS)
 
-  const [deleteListing,{loading:deleteListingLoading,error:deleteLoadingError}]=useMutation<DeleteListingData,DeleteListingVariable>(DELETE_LISTING)
+  const [deleteListing, { loading: deleteListingLoading, error: deleteListingError }] = useMutation<
+    DeleteListingData,
+    DeleteListingVariables
+  >(DELETE_LISTING)
 
   const handleDeleteListing = async (id: string) => {
-   await deleteListing({id})
+    await deleteListing({ variables: { id } })
     refetch()
   }
 
   const listings = data ? data.listings : null
 
   const listingsList = listings ? (
-    <ul>
-      {
-        listings?.map((listing: Listing) =>
-          <li key={listing.id}>
-            {listing.title}
-            <button onClick={() => handleDeleteListing(listing.id)}>Delete Listing!</button>
-          </li>)
-      }
-    </ul>) : null
+    <List
+      itemLayout="horizontal"
+      dataSource={listings}
+      renderItem={(listing) => (
+        <List.Item
+          actions={[
+            <Button type="primary" onClick={() => handleDeleteListing(listing.id)}>
+              Delete
+            </Button>,
+          ]}
+        >
+          <List.Item.Meta
+            title={listing.title}
+            description={listing.address}
+            avatar={<Avatar src={listing.image} shape="square" size={48} />}
+          />
+        </List.Item>
+      )}
+    />
+  ) : null
 
-  if(loading){
-    return <h2>Loading...</h2>
-  }
-
-  if(error){
-    return(
-      <h2>Uh oh! Something went Wrong - please try  again later :(</h2>
+  if (loading) {
+    return (
+      <div className="listings">
+        <ListingsSkeleton title={title} />
+      </div>
     )
   }
 
-  const deleteListingLoadingMessage=deleteListingLoading?(
-  <h4>Deletion in progress...</h4>
-  ):null
+  if (error) {
+    return (
+      <div className="listings">
+        <ListingsSkeleton title={title} error />
+      </div>
+    )
+  }
 
-  const deleteLoadingErrorMessage=deleteLoadingError?(
-    <h2>Uh oh! Something went Wrong with deleting- please try  again later :(</h2>
-  ):null
+  const deleteListingErrorAlert = deleteListingError ? (
+    <Alert
+      type="error"
+      message="Uh oh! Something went Wrong - please try again later :("
+      className="listings__alert"
+    />
+  ) : null
 
   return (
-  <div>
-    <h2>{title}</h2>
-    {listingsList}
-    {deleteListingLoadingMessage}
-    {deleteLoadingErrorMessage}
-  </div>
+    <div className="listings">
+      <Spin spinning={deleteListingLoading} />
+      {deleteListingErrorAlert}
+      <h2>{title}</h2>
+      {listingsList}
+    </div>
   )
-};
+}
